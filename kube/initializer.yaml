@@ -1,0 +1,18 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: gcp-service-accounts-initializer
+  namespace: kube-system
+  labels:
+    k8s-app: gcp-service-accounts-initializer
+  initializers:
+    pending: []
+spec:
+  template:
+    metadata:
+      labels:
+        k8s-app: gcp-service-accounts-initializer
+    spec:
+      containers:
+      - name: initializer
+        image: gcr.io/ahmetb-samples-playground/gcp-serviceaccounts-initializer:2
