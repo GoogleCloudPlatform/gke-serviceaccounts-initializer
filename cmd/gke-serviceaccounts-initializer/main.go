@@ -207,6 +207,7 @@ func injectPod(pod *corev1.Pod) bool {
 	return true
 }
 
+// patchPod saves the pod to the API using a strategic 2-way JSON merge patch.
 func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) error {
 	origData, err := json.Marshal(origPod)
 	if err != nil {
@@ -218,13 +219,13 @@ func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) erro
 		return fmt.Errorf("failed to marshal modified pod: %+v", err)
 	}
 
-	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(origData, newData, corev1.Pod{})
+	patch, err := strategicpatch.CreateTwoWayMergePatch(origData, newData, corev1.Pod{})
 	if err != nil {
 		return fmt.Errorf("failed to create 2-way merge patch: %+v", err)
 	}
 
-	if _, err = clientset.CoreV1().Pods("").Patch(origPod.GetName(),
-		types.StrategicMergePatchType, patchBytes); err != nil {
+	if _, err = clientset.CoreV1().Pods(corev1.NamespaceAll).Patch(
+		origPod.GetName(), types.StrategicMergePatchType, patch); err != nil {
 		return fmt.Errorf("failed to patch pod/%s: %+v", origPod.GetName(), err)
 	}
 	return nil
