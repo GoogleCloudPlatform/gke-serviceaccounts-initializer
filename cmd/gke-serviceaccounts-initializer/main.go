@@ -22,7 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	"k8s.io/api/apps/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -73,10 +72,10 @@ func main() {
 		log.Fatalf("failed to initialize kubernetes client: %+v", err)
 	}
 
-	// Watch uninitialized Deployments in all namespaces.
-	restClient := clientset.AppsV1beta1().RESTClient()
+	// Watch uninitialized Pods in all namespaces.
+	restClient := clientset.CoreV1().RESTClient()
 	watchlist := cache.NewListWatchFromClient(restClient,
-		"deployments", corev1.NamespaceAll, fields.Everything())
+		"pods", corev1.NamespaceAll, fields.Everything())
 
 	// Wrap the returned watchlist to workaround the inability to include
 	// the `IncludeUninitialized` list option when setting up watch clients.
@@ -92,13 +91,33 @@ func main() {
 	}
 
 	_, controller := cache.NewInformer(includeUninitializedWatchlist,
-		&v1beta1.Deployment{},
+		&corev1.Pod{},
 		resyncPeriod,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
-				err := initializeDeployment(obj.(*v1beta1.Deployment), clientset)
+				pod, ok := obj.(*corev1.Pod)
+				if !ok {
+					log.Fatalf("watch returned non-pod object: %T", pod)
+				}
+
+				if !needsInitialization(pod) {
+					log.Printf("does not need initialization: pod/%s", pod.GetName())
+					return
+				}
+
+				modifiedPod, err := clonePod(pod)
 				if err != nil {
-					log.Println(err)
+					log.Printf("error cloning pod object: %+v", err)
+				}
+
+				if !injectPod(modifiedPod) {
+					log.Printf("no injection for pod/%s", pod.GetName())
+				}
+
+				if err := patchPod(pod, modifiedPod, clientset); err != nil {
+					log.Printf("error saving pod/%s: %+v", pod.GetName(), err)
+				} else {
+					log.Printf("initialized pod/%s", pod.GetName())
 				}
 			},
 		},
@@ -115,96 +134,105 @@ func main() {
 	close(stop)
 }
 
-func initializeDeployment(deployment *v1beta1.Deployment, clientset *kubernetes.Clientset) error {
-	if deployment.ObjectMeta.GetInitializers() != nil {
-		pendingInitializers := deployment.ObjectMeta.GetInitializers().Pending
+// needsInitialization determines if the pod is required to be initialized
+// currently by this initializer.
+func needsInitialization(pod *corev1.Pod) bool {
+	initializers := pod.ObjectMeta.GetInitializers()
+	return initializers != nil &&
+		len(initializers.Pending) > 0 &&
+		initializers.Pending[0].Name == initializerName
+}
 
-		if initializerName == pendingInitializers[0].Name {
-			log.Printf("Initializing deployment/%s", deployment.Name)
+// clonePod creates a deep copy of pod for modification.
+func clonePod(pod *corev1.Pod) (*corev1.Pod, error) {
+	o, err := runtime.NewScheme().DeepCopy(pod)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deepcopy: %+v", err)
+	}
+	p, ok := o.(*corev1.Pod)
+	if !ok {
+		return nil, fmt.Errorf("cloned object is not a Pod: %T", p)
+	}
+	return p, nil
+}
 
-			o, err := runtime.NewScheme().DeepCopy(deployment)
-			if err != nil {
-				return fmt.Errorf("failed to create a deepcopy of deployment: %+v", err)
-			}
-			initializedDeployment := o.(*v1beta1.Deployment)
+// removeSelfPendingInitializer removes the first element from pending
+// initializers list of in-memory pod value.
+func removeSelfPendingInitializer(pod *corev1.Pod) {
+	pendingInitializers := pod.ObjectMeta.GetInitializers().Pending
+	if len(pendingInitializers) == 1 {
+		pod.ObjectMeta.Initializers = nil
+	} else {
+		pod.ObjectMeta.Initializers.Pending = append(
+			pendingInitializers[:0], pendingInitializers[1:]...)
+	}
+}
 
-			// Remove self from the list of pending Initializers while preserving ordering.
-			if len(pendingInitializers) == 1 {
-				initializedDeployment.ObjectMeta.Initializers = nil
-			} else {
-				initializedDeployment.ObjectMeta.Initializers.Pending = append(pendingInitializers[:0],
-					pendingInitializers[1:]...)
-			}
+// injectPod makes modifications to in-memory pod value to inject the service
+// account. Returns whether any modifications have been made.
+func injectPod(pod *corev1.Pod) bool {
+	serviceAccountName, ok := pod.ObjectMeta.GetAnnotations()[annotation]
+	if !ok {
+		return false
+	}
 
-			serviceAccountName, ok := deployment.ObjectMeta.GetAnnotations()[annotation]
-			if !ok {
-				log.Printf("Required '%s' annotation missing; skipping initialization", annotation)
-				_, err = clientset.AppsV1beta1().Deployments(deployment.Namespace).Update(initializedDeployment)
-				if err != nil {
-					return fmt.Errorf("failed to update initializers.pending field: %+v", err)
-				}
-				return nil
-			}
+	for i, c := range pod.Spec.Containers {
+		volName := fmt.Sprintf("gcp-%s", serviceAccountName)
+		mountPath := path.Join(secretMountPath, serviceAccountName)
+		keyPath := path.Join(mountPath, serviceAccountFile)
 
-			// Modify the Deployment's Pod template to inject an environment variable
-			for i, c := range initializedDeployment.Spec.Template.Spec.Containers {
-				volName := fmt.Sprintf("gcp-%s", serviceAccountName)
-				mountPath := path.Join(secretMountPath, serviceAccountName)
-				keyPath := path.Join(mountPath, serviceAccountFile)
-
-				// volume
-				initializedDeployment.Spec.Template.Spec.Volumes = append(initializedDeployment.Spec.Template.Spec.Volumes,
-					corev1.Volume{
-						Name: volName,
-						VolumeSource: corev1.VolumeSource{
-							Secret: &corev1.SecretVolumeSource{
-								SecretName: serviceAccountName,
-								Items: []corev1.KeyToPath{
-									{
-										Key:  "key.json",
-										Path: "key.json",
-									},
-								},
+		pod.Spec.Volumes = append(pod.Spec.Volumes,
+			corev1.Volume{
+				Name: volName,
+				VolumeSource: corev1.VolumeSource{
+					Secret: &corev1.SecretVolumeSource{
+						SecretName: serviceAccountName,
+						Items: []corev1.KeyToPath{
+							{
+								Key:  "key.json",
+								Path: "key.json",
 							},
 						},
-					})
+					},
+				},
+			})
 
-				// volume mount
-				initializedDeployment.Spec.Template.Spec.Containers[i].VolumeMounts = append(initializedDeployment.Spec.Template.Spec.Containers[i].VolumeMounts,
-					corev1.VolumeMount{
-						Name:      volName,
-						MountPath: mountPath,
-						SubPath:   "",
-						ReadOnly:  true,
-					})
+		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts,
+			corev1.VolumeMount{
+				Name:      volName,
+				MountPath: mountPath,
+				SubPath:   "",
+				ReadOnly:  true,
+			})
 
-				// env
-				initializedDeployment.Spec.Template.Spec.Containers[i].Env = append(c.Env, corev1.EnvVar{
-					Name:  "GOOGLE_APPLICATION_CREDENTIALS",
-					Value: keyPath,
-				})
-			}
+		pod.Spec.Containers[i].Env = append(c.Env, corev1.EnvVar{
+			Name:  "GOOGLE_APPLICATION_CREDENTIALS",
+			Value: keyPath,
+		})
+	}
 
-			oldData, err := json.Marshal(deployment)
-			if err != nil {
-				return fmt.Errorf("failed to marshal old deployment: %+v", err)
-			}
+	return true
+}
 
-			newData, err := json.Marshal(initializedDeployment)
-			if err != nil {
-				return fmt.Errorf("failed to marshal new deployment: %+v", err)
-			}
+func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) error {
+	origData, err := json.Marshal(origPod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal original pod: %+v", err)
+	}
 
-			patchBytes, err := strategicpatch.CreateTwoWayMergePatch(oldData, newData, v1beta1.Deployment{})
-			if err != nil {
-				return fmt.Errorf("failed to create 2-way merge patch: %+v", err)
-			}
+	newData, err := json.Marshal(newPod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal modified pod: %+v", err)
+	}
 
-			if _, err = clientset.AppsV1beta1().Deployments(deployment.Namespace).Patch(deployment.Name, types.StrategicMergePatchType, patchBytes); err != nil {
-				return fmt.Errorf("failed to patch deployment: %+v", err)
-			}
-			log.Printf("Patched deployment/%s", deployment.Name)
-		}
+	patchBytes, err := strategicpatch.CreateTwoWayMergePatch(origData, newData, corev1.Pod{})
+	if err != nil {
+		return fmt.Errorf("failed to create 2-way merge patch: %+v", err)
+	}
+
+	if _, err = clientset.CoreV1().Pods("").Patch(origPod.GetName(),
+		types.StrategicMergePatchType, patchBytes); err != nil {
+		return fmt.Errorf("failed to patch pod/%s: %+v", origPod.GetName(), err)
 	}
 	return nil
 }

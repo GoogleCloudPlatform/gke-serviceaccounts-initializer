@@ -1,17 +1,14 @@
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: gcp-service-accounts-initializer
+  name: gke-serviceaccounts-initializer
   namespace: kube-system
   labels:
-    k8s-app: gcp-service-accounts-initializer
+    k8s-app: gke-serviceaccounts-initializer
   initializers:
     pending: []
 spec:
   template:
-    metadata:
-      labels:
-        k8s-app: gcp-service-accounts-initializer
     spec:
       containers:
       - name: initializer
