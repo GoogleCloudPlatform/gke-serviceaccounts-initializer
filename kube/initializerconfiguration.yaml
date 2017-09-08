@@ -1,14 +1,13 @@
 apiVersion: admissionregistration.k8s.io/v1alpha1
 kind: InitializerConfiguration
 metadata:
-  name: gcp-deployment-initializer
+  name: gke-serviceaccounts
 initializers:
   - name: serviceaccounts.cloud.google.com
     rules:
       - apiGroups:
-          - "apps"
-          - "extensions"
+          - ""
         apiVersions:
-          - "v1beta1"
+          - "v1"
         resources:
-          - deployments
+          - pods

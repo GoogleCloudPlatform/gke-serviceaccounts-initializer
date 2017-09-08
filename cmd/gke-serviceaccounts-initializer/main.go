@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	annotation       = "iam.cloud.google.com/account-name"
+	annotation       = "iam.cloud.google.com/service-account"
 	initializerName  = "serviceaccounts.cloud.google.com"
 	defaultNamespace = "default"
 	resyncPeriod     = 30 * time.Second
@@ -101,7 +101,7 @@ func main() {
 				}
 
 				if !needsInitialization(pod) {
-					log.Printf("does not need initialization: pod/%s", pod.GetName())
+					log.Printf("skipping pod/%s", pod.GetName())
 					return
 				}
 
@@ -110,9 +110,11 @@ func main() {
 					log.Printf("error cloning pod object: %+v", err)
 				}
 
-				if !injectPod(modifiedPod) {
-					log.Printf("no injection for pod/%s", pod.GetName())
+				if !modifyPodSpec(modifiedPod) {
+					log.Printf("no injection in pod/%s", pod.GetName())
 				}
+
+				removeSelfPendingInitializer(pod)
 
 				if err := patchPod(pod, modifiedPod, clientset); err != nil {
 					log.Printf("error saving pod/%s: %+v", pod.GetName(), err)
@@ -168,9 +170,33 @@ func removeSelfPendingInitializer(pod *corev1.Pod) {
 	}
 }
 
-// injectPod makes modifications to in-memory pod value to inject the service
-// account. Returns whether any modifications have been made.
-func injectPod(pod *corev1.Pod) bool {
+// patchPod saves the pod to the API using a strategic 2-way JSON merge patch.
+func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) error {
+	origData, err := json.Marshal(origPod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal original pod: %+v", err)
+	}
+
+	newData, err := json.Marshal(newPod)
+	if err != nil {
+		return fmt.Errorf("failed to marshal modified pod: %+v", err)
+	}
+
+	patch, err := strategicpatch.CreateTwoWayMergePatch(origData, newData, corev1.Pod{})
+	if err != nil {
+		return fmt.Errorf("failed to create 2-way merge patch: %+v", err)
+	}
+
+	if _, err = clientset.CoreV1().Pods(origPod.GetNamespace()).Patch(
+		origPod.GetName(), types.StrategicMergePatchType, patch); err != nil {
+		return fmt.Errorf("failed to patch pod/%s: %+v", origPod.GetName(), err)
+	}
+	return nil
+}
+
+// modifyPodSpec makes modifications to in-memory pod value to inject the
+// service account. Returns whether any modifications have been made.
+func modifyPodSpec(pod *corev1.Pod) bool {
 	serviceAccountName, ok := pod.ObjectMeta.GetAnnotations()[annotation]
 	if !ok {
 		return false
@@ -205,28 +231,4 @@ func injectPod(pod *corev1.Pod) bool {
 	}
 
 	return true
-}
-
-// patchPod saves the pod to the API using a strategic 2-way JSON merge patch.
-func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) error {
-	origData, err := json.Marshal(origPod)
-	if err != nil {
-		return fmt.Errorf("failed to marshal original pod: %+v", err)
-	}
-
-	newData, err := json.Marshal(newPod)
-	if err != nil {
-		return fmt.Errorf("failed to marshal modified pod: %+v", err)
-	}
-
-	patch, err := strategicpatch.CreateTwoWayMergePatch(origData, newData, corev1.Pod{})
-	if err != nil {
-		return fmt.Errorf("failed to create 2-way merge patch: %+v", err)
-	}
-
-	if _, err = clientset.CoreV1().Pods(corev1.NamespaceAll).Patch(
-		origPod.GetName(), types.StrategicMergePatchType, patch); err != nil {
-		return fmt.Errorf("failed to patch pod/%s: %+v", origPod.GetName(), err)
-	}
-	return nil
 }

@@ -9,7 +9,10 @@ metadata:
     pending: []
 spec:
   template:
+    metadata:
+      labels:
+        k8s-app: gke-serviceaccounts-initializer
     spec:
       containers:
       - name: initializer
-        image: gcr.io/ahmetb-samples-playground/gcp-serviceaccounts-initializer:2
+        image: gcr.io/ahmetb-samples-playground/initializer:v4
