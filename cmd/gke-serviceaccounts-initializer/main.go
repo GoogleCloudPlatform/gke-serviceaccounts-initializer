@@ -187,28 +187,21 @@ func injectPod(pod *corev1.Pod) bool {
 				VolumeSource: corev1.VolumeSource{
 					Secret: &corev1.SecretVolumeSource{
 						SecretName: serviceAccountName,
-						Items: []corev1.KeyToPath{
-							{
-								Key:  "key.json",
-								Path: "key.json",
-							},
-						},
-					},
-				},
-			})
+						Items: []corev1.KeyToPath{{
+							Key:  "key.json",
+							Path: "key.json",
+						}}}}})
 
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      volName,
 				MountPath: mountPath,
 				SubPath:   "",
-				ReadOnly:  true,
-			})
+				ReadOnly:  true})
 
 		pod.Spec.Containers[i].Env = append(c.Env, corev1.EnvVar{
 			Name:  "GOOGLE_APPLICATION_CREDENTIALS",
-			Value: keyPath,
-		})
+			Value: keyPath})
 	}
 
 	return true
