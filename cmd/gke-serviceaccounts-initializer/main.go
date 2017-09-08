@@ -161,9 +161,12 @@ func clonePod(pod *corev1.Pod) (*corev1.Pod, error) {
 // removeSelfPendingInitializer removes the first element from pending
 // initializers list of in-memory pod value.
 func removeSelfPendingInitializer(pod *corev1.Pod) {
+	if pod.ObjectMeta.GetInitializers() == nil {
+		return
+	}
 	pendingInitializers := pod.ObjectMeta.GetInitializers().Pending
-	if len(pendingInitializers) == 1 {
-		pod.ObjectMeta.Initializers = nil
+	if len(pendingInitializers) <= 1 {
+		pod.ObjectMeta.Initializers.Pending = nil
 	} else {
 		pod.ObjectMeta.Initializers.Pending = append(
 			pendingInitializers[:0], pendingInitializers[1:]...)
