@@ -200,7 +200,10 @@ func patchPod(origPod, newPod *corev1.Pod, clientset *kubernetes.Clientset) erro
 // modifyPodSpec makes modifications to in-memory pod value to inject the
 // service account. Returns whether any modifications have been made.
 func modifyPodSpec(pod *corev1.Pod) bool {
-	serviceAccountName, ok := pod.ObjectMeta.GetAnnotations()[annotation]
+	if pod == nil || pod.ObjectMeta.Annotations == nil {
+		return false
+	}
+	serviceAccountName, ok := pod.ObjectMeta.Annotations[annotation]
 	if !ok {
 		return false
 	}

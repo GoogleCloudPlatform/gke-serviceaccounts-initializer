@@ -37,7 +37,8 @@ func Test_needsInitialization(t *testing.T) {
 				Initializers: &metav1.Initializers{Pending: []metav1.Initializer{{Name: "a.b.c"}}}}}, false},
 		{"uninitialized, our turn", &corev1.Pod{
 			ObjectMeta: metav1.ObjectMeta{Name: "foo",
-				Initializers: &metav1.Initializers{Pending: []metav1.Initializer{{Name: "serviceaccounts.cloud.google.com"}}}}}, true},
+				Initializers: &metav1.Initializers{Pending: []metav1.Initializer{
+					{Name: "serviceaccounts.cloud.google.com"}}}}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -77,7 +78,31 @@ func Test_removeSelfPendingInitializer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			removeSelfPendingInitializer(tt.in)
-			assert.EqualValues(t, *tt.want, *tt.in)
+			assert.Equal(t, tt.want, tt.in)
+		})
+	}
+}
+
+func Test_modifyPodSpec(t *testing.T) {
+
+	tests := []struct {
+		name     string
+		in       *corev1.Pod
+		want     *corev1.Pod
+		modified bool
+	}{
+		{"nil pod", nil, nil, false},
+		{"no container pod", nil, nil, false},
+		{"1 container pod, no annotation", nil, nil, false},
+		{"1 container pod, with annotation", nil, nil, false},
+		{"2 container pod, with annotation", nil, nil, false}, // TODO(ahmetb) write tests
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := modifyPodSpec(tt.in); got != tt.modified {
+				t.Errorf("modifyPodSpec() = %v, want %v", got, tt.modified)
+			}
+			assert.Equal(t, tt.in, tt.want, "wrong injection")
 		})
 	}
 }
