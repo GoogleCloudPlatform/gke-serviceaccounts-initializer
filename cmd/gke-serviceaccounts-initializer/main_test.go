@@ -92,10 +92,76 @@ func Test_modifyPodSpec(t *testing.T) {
 		modified bool
 	}{
 		{"nil pod", nil, nil, false},
-		{"no container pod", nil, nil, false},
-		{"1 container pod, no annotation", nil, nil, false},
-		{"1 container pod, with annotation", nil, nil, false},
-		{"2 container pod, with annotation", nil, nil, false}, // TODO(ahmetb) write tests
+		{"no container pod",
+			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo"}},
+			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "foo"}}, false},
+		{"1 container pod, no annotation",
+			&corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "c1",
+						Image: "i1"}}}},
+			&corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{Name: "foo"},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "c1",
+						Image: "i1"}}}}, false},
+		{"1 container pod, with annotation",
+			&corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+					Annotations: map[string]string{
+						"foo": "bar",
+						"iam.cloud.google.com/service-account": "sa-1",
+					}},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "c1",
+						Image: "i1"}}}},
+			&corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "foo",
+					Annotations: map[string]string{
+						"foo": "bar",
+						"iam.cloud.google.com/service-account": "sa-1",
+					}},
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "gcp-sa-1",
+							VolumeSource: corev1.VolumeSource{
+								Secret: &corev1.SecretVolumeSource{
+									SecretName: "sa-1",
+									Items: []corev1.KeyToPath{
+										{
+											Key:  "key.json",
+											Path: "key.json",
+										},
+									}},
+							},
+						},
+					},
+					Containers: []corev1.Container{
+						{
+							Name:  "c1",
+							Image: "i1",
+							VolumeMounts: []corev1.VolumeMount{
+								{
+									Name:      "gcp-sa-1",
+									ReadOnly:  true,
+									MountPath: "/var/run/secrets/gcp/sa-1",
+								},
+							},
+							Env: []corev1.EnvVar{
+								{
+									Name:  "GOOGLE_APPLICATION_CREDENTIALS",
+									Value: "/var/run/secrets/gcp/sa-1/key.json",
+								},
+							},
+						},
+					}}}, true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
