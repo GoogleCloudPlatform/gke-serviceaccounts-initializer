@@ -15,4 +15,4 @@ spec:
     spec:
       containers:
       - name: initializer
-        image: gcr.io/ahmetb-samples-playground/initializer:v4
+        image: gcr.io/ahmetb-samples-playground/initializer:v10

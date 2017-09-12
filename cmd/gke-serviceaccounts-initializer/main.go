@@ -114,7 +114,7 @@ func main() {
 					log.Printf("no injection in pod/%s", pod.GetName())
 				}
 
-				removeSelfPendingInitializer(pod)
+				removeSelfPendingInitializer(modifiedPod)
 
 				if err := patchPod(pod, modifiedPod, clientset); err != nil {
 					log.Printf("error saving pod/%s: %+v", pod.GetName(), err)
@@ -165,9 +165,9 @@ func removeSelfPendingInitializer(pod *corev1.Pod) {
 		return
 	}
 	pendingInitializers := pod.ObjectMeta.GetInitializers().Pending
-	if len(pendingInitializers) <= 1 {
+	if len(pendingInitializers) == 1 {
 		pod.ObjectMeta.Initializers.Pending = nil
-	} else {
+	} else if len(pendingInitializers) > 1 {
 		pod.ObjectMeta.Initializers.Pending = append(
 			pendingInitializers[:0], pendingInitializers[1:]...)
 	}

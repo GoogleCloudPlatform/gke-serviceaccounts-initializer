@@ -65,7 +65,8 @@ func Test_removeSelfPendingInitializer(t *testing.T) {
 			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Initializers: &metav1.Initializers{
 				Pending: []metav1.Initializer{
 					{Name: "a.b.c"}}}}},
-			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Initializers: &metav1.Initializers{Pending: nil}}}},
+			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Initializers: &metav1.Initializers{
+				Pending: nil}}}},
 		{"first one removed",
 			&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Initializers: &metav1.Initializers{
 				Pending: []metav1.Initializer{
