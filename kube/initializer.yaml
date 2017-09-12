@@ -15,4 +15,4 @@ spec:
     spec:
       containers:
       - name: initializer
-        image: gcr.io/ahmetb-samples-playground/initializer:v10
+        image: gcr.io/ahmetb-public/gke-serviceaccounts-initializer:9422668
