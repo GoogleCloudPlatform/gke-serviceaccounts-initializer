@@ -11,6 +11,9 @@ annotations:
   iam.cloud.google.com/service-account: "[SECRET-NAME]"
 ```
 
+**NOTE: This project is currently work-in-progress (alpha) and not ready for
+production use.**
+
 ## Quickstart
 
 Create an alpha cluster on GKE (Initializers feature is not beta until v1.9):
