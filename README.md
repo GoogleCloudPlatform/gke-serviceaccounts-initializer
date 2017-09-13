@@ -117,7 +117,7 @@ kubectl get pods -l app=nginx -o=yaml
     # ...
 ```
 
-### Contributing.
+### Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 
