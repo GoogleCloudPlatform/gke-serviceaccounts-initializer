@@ -113,3 +113,9 @@ kubectl get pods -l app=nginx -o=yaml
     # ...
     # ...
 ```
+
+### Contributing.
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
+
+This is not an official Google product.
