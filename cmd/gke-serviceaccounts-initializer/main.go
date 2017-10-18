@@ -105,11 +105,7 @@ func main() {
 					return
 				}
 
-				modifiedPod, err := clonePod(pod)
-				if err != nil {
-					log.Printf("error cloning pod object: %+v", err)
-				}
-
+				modifiedPod := pod.DeepCopy()
 				if !modifyPodSpec(modifiedPod) {
 					log.Printf("no injection in pod/%s", pod.GetName())
 				}
@@ -143,19 +139,6 @@ func needsInitialization(pod *corev1.Pod) bool {
 	return initializers != nil &&
 		len(initializers.Pending) > 0 &&
 		initializers.Pending[0].Name == initializerName
-}
-
-// clonePod creates a deep copy of pod for modification.
-func clonePod(pod *corev1.Pod) (*corev1.Pod, error) {
-	o, err := runtime.NewScheme().DeepCopy(pod)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deepcopy: %+v", err)
-	}
-	p, ok := o.(*corev1.Pod)
-	if !ok {
-		return nil, fmt.Errorf("cloned object is not a Pod: %T", p)
-	}
-	return p, nil
 }
 
 // removeSelfPendingInitializer removes the first element from pending
