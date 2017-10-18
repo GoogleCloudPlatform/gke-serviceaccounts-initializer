@@ -1,18 +1,22 @@
 # GKE Service Accounts Initializer
 
-This add-on configures Kubernetes Pods with the Google Cloud Service Accounts
-credentials that you previously imported to the cluster based on an annotation.
+> :warning: **This is pre-release software. Do not use it for production
+> purposes.**
+
+This add-on inject [Google Cloud Service Accounts][sa] credentials, which are
+previously imported to the cluster as Secrets, to [Pods] running on Container
+Engine.
+
+[sa]: https://cloud.google.com/compute/docs/access/service-accounts
+[Pods]: https://kubernetes.io/docs/concepts/workloads/pods/pod/
 
 Install this initializer to your cluster and add the following annotation to
-metadata.annotations field:
+metadata.annotations field of your Pod template or specification:
 
 ```yaml
 annotations:
   iam.cloud.google.com/service-account: "[SECRET-NAME]"
 ```
-
-**NOTE: This project is currently work-in-progress (alpha) and not ready for
-production use.**
 
 ## Quickstart
 

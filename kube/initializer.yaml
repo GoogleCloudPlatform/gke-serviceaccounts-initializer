@@ -29,4 +29,4 @@ spec:
     spec:
       containers:
       - name: initializer
-        image: gcr.io/ahmetb-public/gke-serviceaccounts-initializer:9422668
+        image: gcr.io/google-samples/gke-serviceaccounts-initializer:399d066
