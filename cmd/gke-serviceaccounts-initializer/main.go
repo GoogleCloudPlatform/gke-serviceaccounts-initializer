@@ -191,22 +191,22 @@ func modifyPodSpec(pod *corev1.Pod) bool {
 		return false
 	}
 
+	volName := fmt.Sprintf("gcp-%s", serviceAccountName)
+	mountPath := path.Join(secretMountPath, serviceAccountName)
+	keyPath := path.Join(mountPath, serviceAccountFile)
+
+	pod.Spec.Volumes = append(pod.Spec.Volumes,
+		corev1.Volume{
+			Name: volName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName: serviceAccountName,
+					Items: []corev1.KeyToPath{{
+						Key:  "key.json",
+						Path: "key.json",
+					}}}}})
+
 	for i, c := range pod.Spec.Containers {
-		volName := fmt.Sprintf("gcp-%s", serviceAccountName)
-		mountPath := path.Join(secretMountPath, serviceAccountName)
-		keyPath := path.Join(mountPath, serviceAccountFile)
-
-		pod.Spec.Volumes = append(pod.Spec.Volumes,
-			corev1.Volume{
-				Name: volName,
-				VolumeSource: corev1.VolumeSource{
-					Secret: &corev1.SecretVolumeSource{
-						SecretName: serviceAccountName,
-						Items: []corev1.KeyToPath{{
-							Key:  "key.json",
-							Path: "key.json",
-						}}}}})
-
 		pod.Spec.Containers[i].VolumeMounts = append(pod.Spec.Containers[i].VolumeMounts,
 			corev1.VolumeMount{
 				Name:      volName,

@@ -9,6 +9,7 @@ Engine.
 
 [sa]: https://cloud.google.com/compute/docs/access/service-accounts
 [Pods]: https://kubernetes.io/docs/concepts/workloads/pods/pod/
+[GKE]: https://cloud.google.com/container-engine/
 
 Install this initializer to your cluster and add the following annotation to
 metadata.annotations field of your Pod template or specification:
@@ -20,11 +21,10 @@ annotations:
 
 ## Quickstart
 
-Create an alpha cluster on GKE (Initializers feature is not beta until v1.9):
+Create an **alpha** cluster on [GKE] (Initializers feature is not beta until v1.9):
 
     gcloud container clusters create test-cluster \
-        --enable-kubernetes-alpha \
-        --cluster-version 1.7.5
+        --enable-kubernetes-alpha
 
 Clone this repository, and deploy the initializer to `kube-system` namespace:
 
