@@ -3,7 +3,7 @@
 > :warning: **This is pre-release software. Do not use it for production
 > purposes.**
 
-This add-on inject [Google Cloud Service Accounts][sa] credentials, which are
+This add-on injects [Google Cloud Service Accounts][sa] credentials, which are
 previously imported to the cluster as Secrets, to [Pods] running on Container
 Engine.
 
