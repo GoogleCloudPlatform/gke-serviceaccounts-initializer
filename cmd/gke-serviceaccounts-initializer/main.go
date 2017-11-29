@@ -97,7 +97,7 @@ func main() {
 			AddFunc: func(obj interface{}) {
 				pod, ok := obj.(*corev1.Pod)
 				if !ok {
-					log.Fatalf("watch returned non-pod object: %T", pod)
+					log.Fatalf("watch returned non-pod object: %T", obj)
 				}
 
 				if !needsInitialization(pod) {
